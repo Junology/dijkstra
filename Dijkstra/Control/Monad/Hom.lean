@@ -15,6 +15,8 @@ MonadHom.app_pure : {α : Type u} : ∀ (a : α), app (pure a) = pure a
 MonadHom.app_bind : {α β : Type u} : ∀ (x : m α) (f : α → m β) : app (x >>= f) = app x >>= app ∘ f
 ```
 
+Note that the two conditions suffice to ensure `app` to be a natural transformation between endo-functors.
+
 -/
 
 universe u v v₁ v₂ v₃ w 
@@ -42,5 +44,12 @@ theorem ext {m : Type u → Type v} [Monad m] {n : Type u → Type w} [Monad n] 
   apply MonadHom.eq (m:=m)
   funext _ x
   exact h x
+
+/-- Proof that the two conditions in `MonadHom` implies the naturality of `MonadHom.app` in the ordinary sense. -/
+theorem naturality {m : Type u → Type v} [Monad m] [LawfulMonad m] {n :Type u → Type w} [Monad n] [LawfulMonad n] (F : MonadHom m n) {α β : Type u} (f : α → β) : F.app ∘ Functor.map f = Functor.map f ∘ F.app := by
+  funext x; dsimp
+  conv =>
+    lhs; rw [map_eq_pure_bind, F.app_bind]; rhs; ext a; dsimp; rw [F.app_pure]
+  rw [map_eq_pure_bind]
 
 end MonadHom
