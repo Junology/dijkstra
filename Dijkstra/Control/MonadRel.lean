@@ -3,7 +3,7 @@ Copyright (c) 2022 Jun Yoshida. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
 
-import Dijkstra.Control.SpecMonad
+import Dijkstra.Control.MonadHom
 
 /-!
 
@@ -26,7 +26,7 @@ MonadRel.bind {α β : Type u} {x : m α} {y : n α} {f : α → m β} {g : α �
 
 -/
 
-universe u v v₁ v₂ v₃ w
+universe u v v₁ v₂ v₃ w w₁ w₂
 
 structure MonadRel (m : Type u → Type v) [Monad m] (n : Type u → Type w) [Monad n] where
   rel {α : Type u} : m α → n α → Prop
@@ -36,13 +36,20 @@ structure MonadRel (m : Type u → Type v) [Monad m] (n : Type u → Type w) [Mo
 
 namespace MonadRel
 
+/-- The equality; `MonadRel.Eq m` is associated with `m` itself via the diagonal morphism `m → m × m`. -/
 protected
 def Eq {m : Type u → Type v} [Monad m] : MonadRel m m where
   rel := Eq
   pure _ := rfl
   bind h hfg := h ▸ bind_congr hfg
 
-/-- @warning: the composition of monad relations requires `Classical.Choice`. -/
+/-- Invert the direction of a given relation. -/
+def swap {m : Type u → Type v} [Monad m] {n : Type u → Type w} [Monad n] (r : MonadRel m n) : MonadRel n m where
+  rel y x := r.rel x y
+  pure a := r.pure a
+  bind hxy hfg := r.bind hxy hfg
+
+/-- @warning the composition of monad relations requires `Classical.Choice`. -/
 def comp {m₁ : Type u → Type v₁} [Monad m₁] {m₂ : Type u → Type v₂} [Monad m₂] {m₃ : Type u → Type v₃} [Monad m₃] (r₁ : MonadRel m₁ m₂) (r₂ : MonadRel m₂ m₃) : MonadRel m₁ m₃ where
   rel x z := ∃ y, r₁.rel x y ∧ r₂.rel y z
   pure a := Exists.intro (Pure.pure a) ⟨r₁.pure a, r₂.pure a⟩
@@ -52,5 +59,17 @@ def comp {m₁ : Type u → Type v₁} [Monad m₁] {m₂ : Type u → Type v₂
     cases Classical.axiomOfChoice hfh with | intro g hg =>
     exists y >>= g
     exact ⟨r₁.bind hy.left (λ a => (hg a).left), r₂.bind hy.right (λ a => (hg a).right)⟩
+
+/-- Pullback of a relation with respect to the left variable. -/
+def pullLeft {m₁ : Type u → Type v₁} [Monad m₁] {m₂ : Type u → Type v₂} [Monad m₂] {n : Type u → Type w} [Monad n] (F : MonadHom m₁ m₂) (r : MonadRel m₂ n) : MonadRel m₁ n where
+  rel x y := r.rel (F.app x) y
+  pure a := by dsimp; rw [F.app_pure a]; exact r.pure a
+  bind hxy hfg := by dsimp; rw [F.app_bind]; exact r.bind hxy hfg
+
+/-- pullback of a relation with respect to the right variable. -/
+def pullRight {m : Type u → Type v} [Monad m] {n₁ : Type u → Type w₁} [Monad n₁] {n₂ : Type u → Type w₂} [Monad n₂] (F : MonadHom n₁ n₂) (r : MonadRel m n₂) : MonadRel m n₁ where
+  rel x y := r.rel x (F.app y)
+  pure a := by dsimp; rw [F.app_pure a]; exact r.pure a
+  bind hxy hfg := by dsimp; rw [F.app_bind]; exact r.bind hxy hfg
 
 end MonadRel
