@@ -3,6 +3,12 @@ Copyright (c) 2022 Jun Yoshida. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
 
+/-!
+
+# Miscellaneous lemmas on `LawfulMonad`
+
+-/
+
 universe u v
 variable {m : Type u → Type v}
 
