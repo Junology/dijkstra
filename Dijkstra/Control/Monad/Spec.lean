@@ -24,7 +24,7 @@ WPPure α ≡ {wp : (α → Prop) → Prop // ∀ (p q : α → Prop), (∀ a, p
 Indeed, it (coherently) transforms a post-condition `p : α → Prop` into the *weakest precondition* `wp p : Prop` which ensures `p` after computation.
 
 In spite of the origin of the notion, not all specification monads are of this form.
-Actually, we call a monad `m` a specification monad provided it is equipped with a ***monad relation***; e.g. a relation on each `m α` which is respected by `pure` and `bind`.
+Actually, we call a monad `m` a specification monad provided it is equipped with a ***monadic relation***; e.g. a relation on each `m α` which is respected by `pure` and `bind`.
 For example, the specification monad `WPPure` above has a canonical order so that, for `x y : WPPure α`, 
 
 ```lean
@@ -32,7 +32,7 @@ x ≤ y ≡ ∀ (p : α → Prop), y p → x p
 ```
 
 In other words, `x ≤ y` means that `y` requires a stronger pre-condition than `x` does.
-For more details on monad relations, see [Rel.lean](Dijkstra/Control/Monad/Rel.lean).
+For more details on monadic relations, see [Rel.lean](Dijkstra/Control/Monad/Rel.lean).
 
 -/
 
@@ -50,7 +50,7 @@ class OrderedMonad (m : Type u → Type v) [Monad m] where
   le : {α : Type u} → m α → m α → Prop
   bind_le {α β : Type u} {x₁ x₂ : m α} (ha : le x₁ x₂) {f₁ f₂ : α → m β} (hb : ∀ a, le (f₁ a) (f₂ a)) : le (x₁ >>= f₁) (x₂ >>= f₂)
 
-/-- `SpecMonad` is a monad which is equipped with a monad relation. -/
+/-- `SpecMonad` is a monad which is equipped with a monadic relation. -/
 class SpecMonad (m : Type u → Type v) [Monad m] extends MonadRel m m
 
 /-!

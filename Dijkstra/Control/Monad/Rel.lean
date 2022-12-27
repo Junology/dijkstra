@@ -24,6 +24,7 @@ MonadRel.rel_pure {α : Type u} : ∀ (a : α), r (pure a) (pure a)
 MonadRel.rel_bind {α β : Type u} {x : m α} {y : n α} {f : α → m β} {g : α → n β} : r x y → (∀ a, r (f a) (g a)) → r (x >>= f) (y >>= g)
 ```
 
+We call such a relation a ***monadic relation***.
 -/
 
 universe u v v₁ v₂ v₃ w w₁ w₂
@@ -49,7 +50,7 @@ def swap {m : Type u → Type v} [Monad m] {n : Type u → Type w} [Monad n] (r 
   rel_pure a := r.rel_pure a
   rel_bind hxy hfg := r.rel_bind hxy hfg
 
-/-- @warning the composition of monad relations requires `Classical.Choice`. -/
+/-- @warning the composition of monadic relations requires `Classical.Choice`. -/
 def comp {m₁ : Type u → Type v₁} [Monad m₁] {m₂ : Type u → Type v₂} [Monad m₂] {m₃ : Type u → Type v₃} [Monad m₃] (r₁ : MonadRel m₁ m₂) (r₂ : MonadRel m₂ m₃) : MonadRel m₁ m₃ where
   rel x z := ∃ y, r₁.rel x y ∧ r₂.rel y z
   rel_pure a := Exists.intro (Pure.pure a) ⟨r₁.rel_pure a, r₂.rel_pure a⟩
