@@ -3,6 +3,8 @@ Copyright (c) 2022 Jun Yoshida. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
 
+import Dijkstra.Control.MonadRel
+
 /-!
 
 # Specification Monads
@@ -22,14 +24,15 @@ WPPure α ≡ {wp : (α → Prop) → Prop // ∀ (p q : α → Prop), (∀ a, p
 Indeed, it (coherently) transforms a post-condition `p : α → Prop` into the *weakest precondition* `wp p : Prop` which ensures `p` after computation.
 
 In spite of the origin of the notion, not all specification monads are of this form.
-Actually, we call a monad `m` a specification monad provided it is an ***ordered monad*** in the sense that the type `m α` is equipped with an order relation for each type `α` so that the operation `bind` is monotonic.
-For example, the specification monad `WPPure` above is ordered so that, for `x y : WPPure α`, 
+Actually, we call a monad `m` a specification monad provided it is equipped with a ***monad relation***; e.g. a relation on each `m α` which is respected by `pure` and `bind`.
+For example, the specification monad `WPPure` above has a canonical order so that, for `x y : WPPure α`, 
 
 ```lean
 x ≤ y ≡ ∀ (p : α → Prop), y p → x p
 ```
 
-In other words, `x ≤ y` means that `y` is a stronger condition than `x`.
+In other words, `x ≤ y` means that `y` requires a stronger pre-condition than `x` does.
+For more details on monad relations, see [MonadRel.lean](Dijkstra/Control/MonadRel.lean).
 
 -/
 
@@ -47,6 +50,8 @@ class OrderedMonad (m : Type u → Type v) [Monad m] where
   le : {α : Type u} → m α → m α → Prop
   bind_le {α β : Type u} {x₁ x₂ : m α} (ha : le x₁ x₂) {f₁ f₂ : α → m β} (hb : ∀ a, le (f₁ a) (f₂ a)) : le (x₁ >>= f₁) (x₂ >>= f₂)
 
+/-- `SpecMonad` is a monad which is equipped with a monad relation. -/
+class SpecMonad (m : Type u → Type v) [Monad m] extends MonadRel m m
 
 /-!
 
@@ -138,10 +143,11 @@ instance instLawfulMonadPred : LawfulMonad Pred where
       exists b₁
       exact And.intro ⟨a, ⟨ha.left, hb₁.left⟩⟩ hb₁.right
 
-instance instOrderedMonadPred : OrderedMonad Pred where
-  le p q := ∀ a, p a → q a
-  bind_le := by
-    intro _ _ p q hpq f g hfg b hb
+instance instSpecMonad : SpecMonad Pred where
+  rel p q := ∀ a, p a → q a
+  rel_pure a := by dsimp [Pure.pure]; intro _; exact id
+  rel_bind := by
+    intro _ _ p q f g hpq hfg b hb
     dsimp [bind] at *
     cases hb with | intro a ha =>
     exists a
@@ -180,10 +186,10 @@ instance instLawfulMonadWPPure : LawfulMonad WPPure where
   pure_bind _ _ := rfl
   bind_assoc _ _ _ := rfl
 
-instance instOrderedMonadWPPure : OrderedMonad WPPure where
-  le x y := ∀ p, y.predT p → x.predT p
-  bind_le := by
-    dsimp [bind]; intro _ _ x₁ x₂ ha f₁ f₂ hb
-    intro p h₂
-    apply ha
-    exact x₂.monotonic (λ a => hb a p) h₂
+instance instSpecMonadWPPure : SpecMonad WPPure where
+  rel x y := ∀ p, y.predT p → x.predT p
+  rel_pure a := by dsimp; intro _; exact id
+  rel_bind := by
+    dsimp [bind]; intro _ _ x y f g hxy hfg hb p
+    apply hxy
+    exact y.monotonic (λ a => hfg a hb) p
