@@ -1,8 +1,8 @@
 import Dijkstra.Init
 import Dijkstra.Control.Lawful
-import Dijkstra.Control.MonadHom
-import Dijkstra.Control.MonadTransformer
-import Dijkstra.Control.SpecMonad
+import Dijkstra.Control.Monad.Hom
+import Dijkstra.Control.Monad.Transformer
+import Dijkstra.Control.Monad.Spec
 
 universe u v v₁ v₂ v₃ w
 

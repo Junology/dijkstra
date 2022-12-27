@@ -3,7 +3,7 @@ Copyright (c) 2022 Jun Yoshida. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
 
-import Dijkstra.Control.MonadRel
+import Dijkstra.Control.Monad.Rel
 
 /-!
 
@@ -32,7 +32,7 @@ x ≤ y ≡ ∀ (p : α → Prop), y p → x p
 ```
 
 In other words, `x ≤ y` means that `y` requires a stronger pre-condition than `x` does.
-For more details on monad relations, see [MonadRel.lean](Dijkstra/Control/MonadRel.lean).
+For more details on monad relations, see [Rel.lean](Dijkstra/Control/Monad/Rel.lean).
 
 -/
 
