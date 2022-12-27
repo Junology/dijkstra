@@ -1,12 +1,10 @@
+import Dijkstra.Init
 import Dijkstra.Control.Lawful
 import Dijkstra.Control.MonadHom
 import Dijkstra.Control.MonadTransformer
 import Dijkstra.Control.SpecMonad
 
 universe u v v₁ v₂ v₃ w
-
-inductive DEq {α : Type u} (β : α → Type v) : {a₁ a₂ : α} → β a₁ → β a₂ → Prop
-| rfl {a : α} (b : β a) : DEq β b b
 
 class DijkstraMonad (WP : Type u → Type v) [Monad WP] (M : {α : Type u} → WP α → Type v) where
   dpure {α : Type u} (a : α) : M (return a)
