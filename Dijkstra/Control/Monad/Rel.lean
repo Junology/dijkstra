@@ -29,7 +29,7 @@ We call such a relation a ***monadic relation***.
 
 universe u v v₁ v₂ v₃ w w₁ w₂
 
-structure MonadRel (m : Type u → Type v) [Monad m] (n : Type u → Type w) [Monad n] where
+class MonadRel (m : Type u → Type v) [Monad m] (n : Type u → Type w) [Monad n] where
   rel {α : Type u} : m α → n α → Prop
   rel_pure {α : Type u} (a : α) : rel (pure a) (pure a)
   rel_bind {α β : Type u} {x : m α} {y : n α} {f : α → m β} {g : α → n β} : rel x y → (∀ a, rel (f a) (g a)) → rel (x >>= f) (y >>=g)

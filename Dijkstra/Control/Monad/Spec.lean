@@ -45,11 +45,6 @@ universe u v w
 
 -/
 
-/-- A monad `m : Type u → Type v` is called an ordered monad provided, for each `α : Type u`, the type `m α : Type v` is equipped with an order relation so that `bind` is monotonic in each variable. -/
-class OrderedMonad (m : Type u → Type v) [Monad m] where
-  le : {α : Type u} → m α → m α → Prop
-  bind_le {α β : Type u} {x₁ x₂ : m α} (ha : le x₁ x₂) {f₁ f₂ : α → m β} (hb : ∀ a, le (f₁ a) (f₂ a)) : le (x₁ >>= f₁) (x₂ >>= f₂)
-
 /-- `SpecMonad` is a monad which is equipped with a monadic relation. -/
 class SpecMonad (m : Type u → Type v) [Monad m] extends MonadRel m m
 
