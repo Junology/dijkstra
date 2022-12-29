@@ -31,6 +31,9 @@ theorem subst_deq : ∀ {a₁ a₂ : α} {h : a₁ = a₂} {b : β a₁}, DEq β
 theorem eq_param : ∀ {a₁ a₂ : α} {x₁ : β a₁} {x₂ : β a₂}, DEq β x₁ x₂ → a₁ = a₂
 | _, _, _, _, DEq.refl _ => rfl
 
+theorem deq_of_eq : ∀ {a : α} {x₁ x₂ : β a}, x₁ = x₂ → DEq β x₁ x₂
+| _, _, _, rfl => DEq.refl _
+
 theorem eq_of_deq : ∀ {a : α} {x₁ x₂ : β a}, DEq β x₁ x₂ → x₁ = x₂
 | _, _, _, DEq.refl _ => rfl
 
