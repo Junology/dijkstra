@@ -230,6 +230,18 @@ instance instDijkstraMonadGraph : DijkstraMonad W (Graph r) where
   dpure a := Subtype.mk (pure a) (r.rel_pure a)
   dbind x f := Subtype.mk (x.val >>= (λ a => (f a).val)) $ r.rel_bind x.property (λ a => (f a).property)
 
+instance instDijkstraMonadLawfulGraph [LawfulMonad m] [LawfulMonad W] : DijkstraMonad.Lawful W (Graph r) where
+  dbind_dpure := by
+    intro α wa x
+    exact Graph.deq _ _ (bind_pure wa) (bind_pure x.val)
+  dpure_dbind := by
+    intro α β wf a f
+    exact Graph.deq _ _ (pure_bind a wf) (pure_bind a (λ a => (f a).val))
+  dbind_assoc := by
+    intro α β γ wa wf wg x f g
+    apply Graph.deq _ _ (bind_assoc wa wf wg)
+    dsimp [dbind]; rw [bind_assoc]
+
 end Graph
 
 end DijkstraMonad
