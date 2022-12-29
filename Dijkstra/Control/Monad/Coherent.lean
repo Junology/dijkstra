@@ -140,7 +140,7 @@ reify_dpure {α : Type u} {p : Pred α} : ∀ (a : α) {h : p a}, reify p (dpure
 
 reify_dbind {α β : Type u} {p : Pred α} {q : α → Pred β} : ∀ {wa : WPPure α} {wf : α → WPPure β} (x : M α wa) (f : (a : α) → M β (wf a)) {h : (wa >>= wf) (p >>= q)} {hp : wa p} {hq : ∀ a, (wf a) (q a)}, reify (p >>= q) (dbind x f) h = dbind (reify p x hp) λ a => reify (q a) (f a) (hq a)
 
-reify_weaken {α : Type u} {p q : Pred α} : ∀ {wp : WPPure α} {x : M α wp} {h : wp p}, reify x h = 
+reify_weaken {α : Type u} {p q : Pred α} (hpq : ∀ a, p a → q a): ∀ {wp : WPPure α} {x : M α wp} {h : wp p}, (reify p x h).weaken hpq = reify q x (wp.monotonic h)
 ```
 -/
 
