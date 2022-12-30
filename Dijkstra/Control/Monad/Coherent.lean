@@ -61,7 +61,7 @@ instance instDijkstraMonadSubtypeT : DijkstraMonad Pred (SubtypeT m) where
 def pureMk {α : Type u} {p : Pred α} (a : α) (h : p a) : SubtypeT m α p :=
   pure ⟨a,h⟩
 
-def weaken {α : Type u} {p q : Pred α} (hpq : MonadRel.rel p q) (x : SubtypeT m α p) : SubtypeT m α q :=
+def weaken {α : Type u} {p q : Pred α} (hpq : mrel p q) (x : SubtypeT m α p) : SubtypeT m α q :=
   x >>= λ a => return ⟨a.val, hpq a a.property⟩
 
 theorem deq_of_iff [LawfulMonad m] {α : Type u} {p q : Pred α} (hpq : ∀ a, p a ↔ q a) : ∀ (x : SubtypeT m α p), DEq (SubtypeT m α) x (x.weaken λ a => (hpq a).mp) := by
@@ -155,4 +155,4 @@ class CoherentMonad.Lawful (M : (α : Type u) → WPPure α → Type v) [Dijkstr
   --- `reify` on `dbind`
   reify_dbind {α β : Type u} {p : Pred α} {q : α → Pred β} : ∀ {wa : WPPure α} {wf : α → WPPure β} (x : M α wa) (f : (a : α) → M β (wf a)) {h : (wa >>= wf).predT (p >>= q)} {hp : wa.predT p} {hq : ∀ a, (wf a).predT (q a)}, reify (M:=M) (m:=m) (p >>= q) (dbind x f) h = dbind (reify p x hp) λ a => reify (q a) (f a) (hq a)
   --- `reify` and `weaken`
-  reify_weaken {α : Type u} {p q : Pred α} (hpq : MonadRel.rel p q): ∀ {wp : WPPure α} {x : M α wp} {h : wp.predT p}, (reify (M:=M) (m:=m) p x h).weaken hpq = reify (M:=M) (m:=m) q x (wp.monotonic hpq h)
+  reify_weaken {α : Type u} {p q : Pred α} (hpq : mrel p q): ∀ {wp : WPPure α} {x : M α wp} {h : wp.predT p}, (reify (M:=M) (m:=m) p x h).weaken hpq = reify (M:=M) (m:=m) q x (wp.monotonic hpq h)

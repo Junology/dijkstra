@@ -19,20 +19,24 @@ def WPExcept (ε : Type u) := ExceptT ε WPPure
 instance (ε : Type u) : Monad (WPExcept ε) :=
   inferInstanceAs (Monad (ExceptT ε WPPure))
 
-instance (ε : Type u) : SpecMonad (WPExcept ε) where
+protected
+def WPExcept.rel (ε : Type u) : MonadRel (WPExcept ε) (WPExcept ε) where
   rel {α} x y := ∀ (p : Except ε α → Prop), y.predT p → x.predT p
-  rel_pure a p := by dsimp; exact id
-  rel_bind {α} {β} {x} {y} f g hxy hfg p := by
+  pure a p := by dsimp; exact id
+  bind {α} {β} {x} {y} f g hxy hfg p := by
     dsimp [bind] at *
     dsimp [ExceptT.bind, ExceptT.mk]
-    apply SpecMonad.toMonadRel.rel_bind (m:=WPPure) (n:=WPPure) hxy
+    apply mrel_bind (m:=WPPure) hxy
     intro a
     cases a
     case a.error e =>
       dsimp [ExceptT.bindCont]
-      exact SpecMonad.toMonadRel.rel_pure (m:=WPPure) (n:=WPPure) _
+      exact mrel_pure (m:=WPPure) _
     case a.ok a =>
       dsimp [ExceptT.bindCont]
       exact hfg a
+
+instance (ε : Type u) : SpecMonad (WPExcept ε) where
+  rel := WPExcept.rel ε
 
 example (ε : Type u) (α : Type _) : WPPure α → WPExcept ε α := monadLift

@@ -227,8 +227,8 @@ theorem deq {α : Type u} {wa₁ wa₂ : W α} : ∀ (x₁ : Graph r α wa₁) (
 | Subtype.mk _ _, Subtype.mk _ _, rfl, rfl => DEq.refl _
 
 instance instDijkstraMonadGraph : DijkstraMonad W (Graph r) where
-  dpure a := Subtype.mk (pure a) (r.rel_pure a)
-  dbind x f := Subtype.mk (x.val >>= (λ a => (f a).val)) $ r.rel_bind x.property (λ a => (f a).property)
+  dpure a := Subtype.mk (pure a) (r.pure a)
+  dbind x f := Subtype.mk (x.val >>= (λ a => (f a).val)) $ r.bind x.property (λ a => (f a).property)
 
 instance instDijkstraMonadLawfulGraph [LawfulMonad m] [LawfulMonad W] : DijkstraMonad.Lawful W (Graph r) where
   dbind_dpure := by

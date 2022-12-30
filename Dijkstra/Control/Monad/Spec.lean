@@ -41,12 +41,23 @@ universe u v w
 
 /-!
 
-## Ordered Monad
+## Definition of specification monads
 
 -/
 
 /-- `SpecMonad` is a monad which is equipped with a monadic relation. -/
-class SpecMonad (m : Type u → Type v) [Monad m] extends MonadRel m m
+class SpecMonad (m : Type u → Type v) [Monad m] where
+  rel : MonadRel m m
+
+def mrel {m : Type u → Type v} [Monad m] [self : SpecMonad m] {α : Type u} : m α → m α → Prop :=
+  self.rel.rel
+
+theorem mrel_pure {m : Type u → Type v} [Monad m] [self : SpecMonad m] {α : Type u} (a : α) : mrel (m:=m) (pure a) (pure a) :=
+  self.rel.pure a
+
+theorem mrel_bind {m : Type u → Type v} [Monad m] [self : SpecMonad m] {α β : Type u} {x y : m α} {f g : α → m β} : mrel x y → (∀ a, mrel (f a) (g a)) → mrel (x >>= f) (y >>= g) :=
+  self.rel.bind
+
 
 /-!
 
@@ -56,6 +67,12 @@ class SpecMonad (m : Type u → Type v) [Monad m] extends MonadRel m m
 
 /-!
 ### Predicate monad
+
+For `α : Type u`, `Pred α = α → Prop` is the type of predicates on the terms of `α`.
+As it is identified with the set of subtypes of `α`, `Pred` can also be seen as the (covariant) power-set operator and hence admits a canonical structure of a monad.
+The `pure : α → Pred α` forms a singleton subtype, and the `bind : Pred α → (α → Pred β) → Pred β` takes the union of an `α`-indexed subtype-family over a subset.
+In terms of predicates, `(p >>= q) b` holds precisely if there is a term `a : α` such that both `p a` and `q a b` are satisfied.
+
 -/
 
 def Pred (α : Type u) : Type u := α → Prop
@@ -138,15 +155,21 @@ instance instLawfulMonadPred : LawfulMonad Pred where
       exists b₁
       exact And.intro ⟨a, ⟨ha.left, hb₁.left⟩⟩ hb₁.right
 
-instance instSpecMonad : SpecMonad Pred where
+/-- The power-set `Pred α` is ordered by inclusion. In terms of predicates, the order agrees with the "implication". -/
+protected
+def Pred.rel : MonadRel Pred Pred where
   rel p q := ∀ a, p a → q a
-  rel_pure a := by dsimp [Pure.pure]; intro _; exact id
-  rel_bind := by
+  pure a := by dsimp [Pure.pure]; intro _; exact id
+  bind := by
     intro _ _ p q f g hpq hfg b hb
     dsimp [bind] at *
     cases hb with | intro a ha =>
     exists a
     exact ⟨hpq a ha.left, hfg a b ha.right⟩
+
+instance instSpecMonad : SpecMonad Pred where
+  rel := Pred.rel
+
 
 /-!
 ### Weakest predicate for pure computations
@@ -181,10 +204,15 @@ instance instLawfulMonadWPPure : LawfulMonad WPPure where
   pure_bind _ _ := rfl
   bind_assoc _ _ _ := rfl
 
-instance instSpecMonadWPPure : SpecMonad WPPure where
+protected
+def WPPure.rel : MonadRel WPPure WPPure where
   rel x y := ∀ p, y.predT p → x.predT p
-  rel_pure a := by dsimp; intro _; exact id
-  rel_bind := by
+  pure a := by dsimp; intro _; exact id
+  bind := by
     dsimp [bind]; intro _ _ x y f g hxy hfg hb p
     apply hxy
     exact y.monotonic (λ a => hfg a hb) p
+
+instance instSpecMonadWPPure : SpecMonad WPPure where
+  rel := WPPure.rel
+
