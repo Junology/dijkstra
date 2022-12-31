@@ -45,9 +45,10 @@ universe u v w
 
 -/
 
-/-- `SpecMonad` is a monad which is equipped with a monadic relation. -/
+/-- `SpecMonad` is a monad which is equipped with a transitive monadic relation. -/
 class SpecMonad (m : Type u → Type v) [Monad m] where
   rel : MonadRel m m
+  trans {α : Type u} {x y z : m α} : rel.rel x y → rel.rel y z → rel.rel x z
 
 def mrel {m : Type u → Type v} [Monad m] [self : SpecMonad m] {α : Type u} : m α → m α → Prop :=
   self.rel.rel
@@ -57,6 +58,12 @@ theorem mrel_pure {m : Type u → Type v} [Monad m] [self : SpecMonad m] {α : T
 
 theorem mrel_bind {m : Type u → Type v} [Monad m] [self : SpecMonad m] {α β : Type u} {x y : m α} {f g : α → m β} : mrel x y → (∀ a, mrel (f a) (g a)) → mrel (x >>= f) (y >>= g) :=
   self.rel.bind
+
+theorem mrel_trans {m : Type u → Type v} [Monad m] [self : SpecMonad m] {α : Type u} {x y z : m α} : mrel x y → mrel y z → mrel x z :=
+  self.trans
+
+instance {m : Type u → Type v} [Monad m] [SpecMonad m] {α : Type u} (x y z : m α) : Trans (mrel (m:=m) (α:=α)) (mrel (m:=m)) (mrel (m:=m)) where
+  trans := mrel_trans
 
 
 /-!
@@ -76,6 +83,11 @@ In terms of predicates, `(p >>= q) b` holds precisely if there is a term `a : α
 -/
 
 def Pred (α : Type u) : Type u := α → Prop
+
+/-- Equality of `Pred α` from `funext` and `propext`. -/
+protected
+def Pred.ext {α : Type u} {p q : Pred α} : (∀ a, p a ↔ q a) → p = q :=
+  λ hpq => funext (λ a => propext (hpq a))
 
 instance instMonadPred : Monad Pred where
   pure a := Eq a
@@ -169,6 +181,7 @@ def Pred.rel : MonadRel Pred Pred where
 
 instance instSpecMonad : SpecMonad Pred where
   rel := Pred.rel
+  trans hpq hqr := λ a hp => hqr a (hpq a hp)
 
 
 /-!
@@ -178,6 +191,19 @@ instance instSpecMonad : SpecMonad Pred where
 structure WPPure (α : Type u) where
   predT : (α → Prop) → Prop
   monotonic {p q : α → Prop} (h : ∀ a, p a → q a) : predT p → predT q
+
+instance coeWPPurePredT (α :Type u) : CoeFun (WPPure α) (λ _ => (α → Prop) → Prop) where
+  coe wp := wp.predT
+
+/-- A utility lemma to prove equality on `WPPure α`. -/
+protected
+theorem WPPure.eq {α : Type u} : ∀ {wp wq : WPPure α}, wp.predT = wq.predT → wp = wq
+| mk _ _, mk _ _, rfl => rfl
+
+/-- Equality on `WPPure α` from `funext` and `propext`. -/
+protected
+theorem WPPure.ext {α : Type u} {wp wq : WPPure α} : (∀ (p : α → Prop), wp.predT p ↔ wq.predT p) → wp = wq :=
+  λ hpq => WPPure.eq $ funext λ p => propext (hpq p)
 
 instance instMonadWPPure : Monad WPPure where
   pure a := {
@@ -215,4 +241,36 @@ def WPPure.rel : MonadRel WPPure WPPure where
 
 instance instSpecMonadWPPure : SpecMonad WPPure where
   rel := WPPure.rel
+  trans hxy hyz := λ p hz => hxy p (hyz p hz)
 
+
+/-!
+
+## Relations between specification monads
+
+For monadic relations between specification monads, we assume compatibility with the intrinsic relations in addition to compatibility with monadic structures.
+
+-/
+
+structure SpecMonadRel (m : Type u → Type v) [Monad m] [SpecMonad m] (n : Type u → Type w) [Monad n] [SpecMonad n] extends MonadRel m n where
+  trans_left {α : Type u} {mx my : m α} {nz : n α} : mrel mx my → rel my nz → rel mx nz
+  trans_right {α : Type u} {mx : m α} {ny nz : n α} : rel mx ny → mrel ny nz → rel mx nz
+
+def WPPure.ensure : SpecMonadRel WPPure Pred where
+  rel wp p := wp.predT p
+  pure a := rfl
+  bind {α} {β} wa pa wf pf hwp hf := by
+    dsimp [bind] at *
+    apply wa.monotonic (p:=pa) _ hwp
+    intro a ha
+    apply (wf a).monotonic _ (hf a)
+    intro b hb
+    exact ⟨a, ⟨ha, hb⟩⟩
+  trans_left := by
+    dsimp [mrel, SpecMonad.rel, WPPure.rel]
+    intro α wx wy p hxy hp
+    exact hxy p hp
+  trans_right := by
+    dsimp [mrel, SpecMonad.rel, Pred.rel]
+    intro α wx p q hp hpq
+    exact wx.monotonic hpq hp
