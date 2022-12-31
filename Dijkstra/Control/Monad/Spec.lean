@@ -62,7 +62,7 @@ theorem mrel_bind {m : Type u → Type v} [Monad m] [self : SpecMonad m] {α β 
 theorem mrel_trans {m : Type u → Type v} [Monad m] [self : SpecMonad m] {α : Type u} {x y z : m α} : mrel x y → mrel y z → mrel x z :=
   self.trans
 
-instance {m : Type u → Type v} [Monad m] [SpecMonad m] {α : Type u} (x y z : m α) : Trans (mrel (m:=m) (α:=α)) (mrel (m:=m)) (mrel (m:=m)) where
+instance {m : Type u → Type v} [Monad m] [SpecMonad m] {α : Type u} : Trans (mrel (m:=m) (α:=α)) (mrel (m:=m)) (mrel (m:=m)) where
   trans := mrel_trans
 
 
