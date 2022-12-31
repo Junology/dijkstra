@@ -38,5 +38,9 @@ def WPExcept.rel (ε : Type u) : MonadRel (WPExcept ε) (WPExcept ε) where
 
 instance (ε : Type u) : SpecMonad (WPExcept ε) where
   rel := WPExcept.rel ε
+  trans := by
+    dsimp [WPExcept.rel]
+    intro α x y z hxy hyz p hp
+    exact hxy p (hyz p hp)
 
 example (ε : Type u) (α : Type _) : WPPure α → WPExcept ε α := monadLift
