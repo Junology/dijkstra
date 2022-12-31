@@ -230,7 +230,6 @@ namespace ReaderT
 
 variable {ρ : Type u} {m : Type u → Type v} [Monad m] [SubregFunctor m]
 
-#check instFunctorReaderT
 def ensureF {α : Type u} {p : α → Prop} (x : ReaderT ρ m α) (hx : mapProp p x) : ReaderT ρ m (Subtype p) :=
   fun r =>
     SubregFunctor.ensureF (f:=m) (x r) $ by
