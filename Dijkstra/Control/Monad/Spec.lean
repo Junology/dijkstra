@@ -256,7 +256,7 @@ structure SpecMonadRel (m : Type u → Type v) [Monad m] [SpecMonad m] (n : Type
   trans_left {α : Type u} {mx my : m α} {nz : n α} : mrel mx my → rel my nz → rel mx nz
   trans_right {α : Type u} {mx : m α} {ny nz : n α} : rel mx ny → mrel ny nz → rel mx nz
 
-def WPPure.ensure : SpecMonadRel WPPure Pred where
+def WPPure.validate : SpecMonadRel WPPure Pred where
   rel wp p := wp.predT p
   pure a := rfl
   bind {α} {β} wa pa wf pf hwp hf := by

@@ -191,7 +191,7 @@ def reify {W : Type u → Type w} [Monad W] [SpecMonad W] {r : SpecMonadRel W Pr
   self.dLift
 
 /-- The axioms for reification -/
-class Reification.Lawful {W : Type u → Type w} [Monad W] [SpecMonad W] (r : SpecMonadRel W Pred) (M : (α : Type u) → W α → Type v) [DijkstraMonad W M] (m : Type u → Type v₁) [Monad m] [Reification r M m] [DijkstraLift.Lawful r.toMonadRel M (SubtypeT m)] where
+class Reification.Lawful {W : Type u → Type w} [Monad W] [SpecMonad W] (r : SpecMonadRel W Pred) (M : (α : Type u) → W α → Type v) [DijkstraMonad W M] (m : Type u → Type v₁) [Monad m] [Reification r M m] extends DijkstraLift.Lawful r.toMonadRel M (SubtypeT m) where
   --- `reify` and `weaken`
   reify_weaken {α : Type u} {wa : W α} {p q : Pred α} (hpq : mrel p q) : ∀ {x : M α wa} {h : r.rel wa p}, (reify (M:=M) (m:=m) p h x).weaken hpq = reify (M:=M) (m:=m) q (r.trans_right h hpq) x
 
