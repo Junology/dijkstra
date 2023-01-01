@@ -29,6 +29,7 @@ def mapProp {f : Type u → Type v} [Functor f] {α : Type u} (p : α → Prop) 
 class SubregFunctor (f : Type u → Type v) [Functor f] where
   ensureF {α : Type u} {p : α → Prop} (x : f α) : mapProp p x → f (Subtype p)
   val_ensureF {α : Type u} {p : α → Prop} (x : f α) {h : mapProp p x} : Subtype.val <$> ensureF x h = x
+  val_inj {α : Type u} {p : α → Prop} {x y : f (Subtype p)} : Subtype.val <$> x = Subtype.val <$> y → x = y
 
 
 /-!
@@ -54,6 +55,7 @@ instance instSubregFunctorId : SubregFunctor Id where
   ensureF a ha := Subtype.mk a $
     ha.elim (fun x hx => hx ▸ x.property)
   val_ensureF _ := rfl
+  val_inj h := Subtype.eq h
 
 end Id
 
@@ -91,6 +93,10 @@ def ensureF {p : α → Prop} : (x : Option α) → mapProp p x → Option (Subt
 instance instSubregFunctorOption : SubregFunctor Option where
   ensureF := ensureF
   val_ensureF x := by intros; cases x <;> rfl
+  val_inj {α} {p} {x} {y} h := match x, y with
+    | none, none => rfl
+    | some a, some b => Subtype.eq (Option.some.inj h) ▸ rfl
+
 end Option
 
 
@@ -131,6 +137,13 @@ theorem mapProp_iff_forAll {α : Type u} {p : α → Prop} {as : List α} : mapP
 instance instSubregFunctorList : SubregFunctor List where
   ensureF x h := zipProof x (mapProp_iff_forAll.mp h)
   val_ensureF x := val_zipProof x
+  val_inj {_} {p} {as} {bs} h :=
+    let rec aux : (as bs : List (Subtype p)) → Subtype.val <$> as = Subtype.val <$> bs → as = bs
+    | [], [], _ => rfl
+    | (a::as), (b::bs), h => by
+      have := List.cons.inj h
+      rw [Subtype.eq this.left, aux as bs this.right]
+    aux as bs h
 
 end List
 
@@ -178,6 +191,14 @@ theorem is_error_or_true_apply (p : β → Prop) (f : α → β) : (is_error_or_
   apply funext
   intros e <;> cases e <;> rfl
 
+theorem errorOrApply_val {p : α → Prop} : errorOrApply (ε:=ε) (Subtype.val (p:=p)) = Subtype.val ∘ toSubtype (p:=p) := by
+  funext x
+  cases x <;> rfl
+
+theorem from_toSubtype {p : α → Prop} : fromSubtype (ε:=ε) (p:=p) ∘ toSubtype = id := by
+  funext x
+  cases x <;> rfl
+
 theorem mapProp_iff_error_or_true {α : Type u} {p : α → Prop} : ∀ x, mapProp (f:=ExceptT ε m) p x ↔ mapProp (f:=m) (is_error_or_true p) x := by
   intro x
   constructor
@@ -218,6 +239,16 @@ instance instSubregFunctorExceptT : SubregFunctor (ExceptT ε m) where
       cases e <;> rfl
     rw [this]
     rw [SubregFunctor.val_ensureF (f:=m) x]
+  val_inj {_} {p} {x} {y} h := by
+    conv at h =>
+      rw [map_eq_map_error_or_apply, map_eq_map_error_or_apply]
+      rw [errorOrApply_val, comp_map, comp_map]
+    have h' := SubregFunctor.val_inj h
+    conv =>
+      rw [←id_map (f:=m) x, ←id_map (f:=m) y]
+      rw [←from_toSubtype (ε:=ε) (p:=p)]
+      rw [comp_map, comp_map]
+      rw [h']
 
 end ExceptT
 
@@ -250,6 +281,13 @@ instance instSubregFunctorReaderT : SubregFunctor (ReaderT ρ m) where
     unfold ensureF
     simp
     rw [map_eq_map_ap, SubregFunctor.val_ensureF]
+  val_inj {_} {p} {x} {y} h:= by
+    conv at h =>
+      dsimp [Functor.map]
+    funext r
+    apply SubregFunctor.val_inj (f:=m)
+    conv =>
+      lhs; change (λ r => (Subtype.val <$> x r)) r; rw [h]
 
 end ReaderT
 
@@ -280,20 +318,34 @@ theorem map_eq_map_comp (f : α → β) (x : StateT σ m α) : (f <$> x) = Funct
   apply bind_congr
   intro w; rfl
 
+def Prod.fstToSubtype {p : α → Prop} : (Subtype p) × σ → Subtype (α:=α×σ) (p ∘ Prod.fst) :=
+  λ x => ⟨⟨x.1.val, x.2⟩, x.1.property⟩
+
+def Prod.fstFromSubtype {p : α → Prop} : Subtype (α:=α×σ) (p ∘ Prod.fst) → Subtype p × σ :=
+  λ x => ⟨⟨x.val.1, x.property⟩, x.val.2⟩
+
+theorem Prod.fst_from_to_subtype {p : α → Prop} : Prod.fstFromSubtype (σ:=σ) (p:=p) ∘ Prod.fstToSubtype = id := by
+  funext x
+  cases x; rfl
+
+theorem Prod.map_val_id {p : α → Prop} : Prod.map (Subtype.val (p:=p)) (id (α:=σ)) = Subtype.val ∘ Prod.fstToSubtype := by
+  funext x
+  cases x; rfl
+
 theorem mapProp_eq_forall_mapProp_fst {p : α → Prop} {x : StateT σ m α} : (mapProp p x) = ∀ s, mapProp (p ∘ Prod.fst) (x s) := by
   apply propext; constructor
   case a.mp =>
     intro hx s
     cases hx with | intro w hw =>
     cases hw
-    exists (λ as => Subtype.mk ⟨as.1.val, as.2⟩ as.1.property) <$> w s
+    exists Prod.fstToSubtype (p:=p) <$> w s
     rw [←comp_map, map_eq_map_comp]
     simp
     apply map_congr
     intro x; rfl
   case a.mpr =>
     intro h
-    exists fun s => (λ x => ⟨⟨x.val.1, x.property⟩, x.val.2⟩) <$> SubregFunctor.ensureF (x s) (h s)
+    exists fun s => Prod.fstFromSubtype <$> SubregFunctor.ensureF (x s) (h s)
     apply funext; intro s
     rw [map_eq_map_comp]
     dsimp
@@ -307,7 +359,7 @@ def ensureF {p : α → Prop} (x : StateT σ m α) (hx : mapProp p x) : StateT �
   have : ∀ s, mapProp (p ∘ Prod.fst) (x s) := by
     rw [mapProp_eq_forall_mapProp_fst] at hx
     exact hx
-  fun s => (λ x => ⟨⟨x.val.1, x.property⟩, x.val.2⟩) <$> SubregFunctor.ensureF (x s) (this s)
+  fun s => Prod.fstFromSubtype <$> SubregFunctor.ensureF (x s) (this s)
 
 instance instSubregFunctorStateT : SubregFunctor (StateT σ m) where
   ensureF := ensureF
@@ -318,6 +370,18 @@ instance instSubregFunctorStateT : SubregFunctor (StateT σ m) where
     dsimp
     rw [←comp_map]
     exact SubregFunctor.val_ensureF _
+  val_inj {_} {p} {x y} h := by
+    funext s
+    rw [←id_map (f:=m) (x s), ←id_map (f:=m) (y s)]
+    rw [←Prod.fst_from_to_subtype]
+    rw [comp_map, comp_map]
+    conv at h =>
+      rw [map_eq_map_comp, map_eq_map_comp, Prod.map_val_id]
+    have h' := congrFun h
+    conv at h' =>
+      ext s; dsimp;
+      rw [comp_map, comp_map]
+    rw [SubregFunctor.val_inj (h' s)]
 
 end StateT
 
@@ -396,6 +460,22 @@ instance instSubregFunctorEStateM : SubregFunctor (EStateM ε σ) where
     simp
     unfold ensureF
     rw [Result.map_val_fromSubtype]
+  val_inj {_} {p} {x y} h := by
+    funext s
+    have hs := congrFun h s
+    conv at hs =>
+      rw [map_eq_map_comp, map_eq_map_comp]
+      dsimp
+    cases hx : x s
+      <;> cases hy : y s
+      <;> conv at hs => rw [hx, hy]; dsimp [Result.map]
+    case h.ok.ok a sa b sb =>
+      have := Result.ok.inj hs
+      rw [Subtype.eq this.left, this.right]
+    case h.error.error ea sa eb sb =>
+      have := Result.error.inj hs
+      rw [this.left, this.right]
+    all_goals {cases hs}
 
 end EStateM
 
