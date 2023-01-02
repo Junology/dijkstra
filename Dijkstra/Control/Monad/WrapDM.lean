@@ -36,7 +36,7 @@ Thus, `WrapDM` can be used to write a specification that ensures a computation r
 universe u v w
 
 def liftWPPure {m : Type u → Type v} [Monad m] [LawfulMonad m] {α : Type u} (x : m α) : WPPure α where
-  predT p := mapProp p x
+  predT p := SatisfiesM p x
   monotonic hpq hp := by
     cases hp with | intro z hz =>
     cases hz

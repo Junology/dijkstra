@@ -3,6 +3,8 @@ Copyright (c) 2022 Jun Yoshida. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
 
+import Std.Classes.LawfulMonad
+
 /-!
 
 # Subregular functors
@@ -23,12 +25,12 @@ is invertible.
 universe u v w
 
 --- The predicate transformer classifying the image of `f (Subtype p) → f α` for each predicate `p : α → Type u`.
-def mapProp {f : Type u → Type v} [Functor f] {α : Type u} (p : α → Prop) : f α → Prop :=
-  λ x => ∃ (z : f (Subtype p)), Subtype.val <$> z = x
+-- def SatisfiesM {f : Type u → Type v} [Functor f] {α : Type u} (p : α → Prop) : f α → Prop :=
+ --  λ x => ∃ (z : f (Subtype p)), Subtype.val <$> z = x
 
 class SubregFunctor (f : Type u → Type v) [Functor f] where
-  ensureF {α : Type u} {p : α → Prop} (x : f α) : mapProp p x → f (Subtype p)
-  val_ensureF {α : Type u} {p : α → Prop} (x : f α) {h : mapProp p x} : Subtype.val <$> ensureF x h = x
+  ensureF {α : Type u} {p : α → Prop} (x : f α) : SatisfiesM p x → f (Subtype p)
+  val_ensureF {α : Type u} {p : α → Prop} (x : f α) {h : SatisfiesM p x} : Subtype.val <$> ensureF x h = x
   val_inj {α : Type u} {p : α → Prop} {x y : f (Subtype p)} : Subtype.val <$> x = Subtype.val <$> y → x = y
 
 
@@ -37,19 +39,6 @@ class SubregFunctor (f : Type u → Type v) [Functor f] where
 -/
 
 namespace Id
-
-theorem mapProp_iff_id {α : Type u} {p : α → Prop} : ∀ a, mapProp (f:=Id) p a ↔ p a := by
-  intro a
-  constructor
-  case mp =>
-    intro ha; cases ha with | intro w hw =>
-    exact hw ▸ w.property
-  case mpr =>
-    intro ha
-    exact ⟨Subtype.mk (p:=p) a ha, rfl⟩
-
-theorem mapProp_eq_id {α : Type u} (p : α → Prop) : mapProp (f:=Id) p = p :=
-  funext $ fun a => propext (mapProp_iff_id a)
 
 instance instSubregFunctorId : SubregFunctor Id where
   ensureF a ha := Subtype.mk a $
@@ -66,32 +55,10 @@ end Id
 
 namespace Option
 
-variable {α : Type u}
-
-def noneOrTrue (p : α → Prop) : Option α → Prop
-| none => True
-| some a => p a
-
-theorem mapProp_iff_noneOrTrue {p : α → Prop} {x : Option α} : mapProp p x ↔ noneOrTrue p x := by
-  constructor
-  case mp =>
-    intro h; cases h with | intro w hw =>
-    cases hw
-    cases w with
-    | none => dsimp [Functor.map, Option.map, noneOrTrue]
-    | some a => dsimp [Functor.map, noneOrTrue]; exact a.property
-  case mpr =>
-    intro h
-    cases x with
-    | none => exists none (α:=Subtype p)
-    | some a => exists some (α:=Subtype p) ⟨a,h⟩
-
-def ensureF {p : α → Prop} : (x : Option α) → mapProp p x → Option (Subtype p)
-| none, _ => none
-| some a, h => some ⟨a,mapProp_iff_noneOrTrue.mp h⟩
-
 instance instSubregFunctorOption : SubregFunctor Option where
-  ensureF := ensureF
+  ensureF x h := match x with
+    | none => none
+    | some a => some ⟨a, SatisfiesM_Option_eq.mp h a rfl⟩
   val_ensureF x := by intros; cases x <;> rfl
   val_inj {α} {p} {x} {y} h := match x, y with
     | none, none => rfl
@@ -122,7 +89,7 @@ theorem val_zipProof {α : Type u} {p : α → Prop} (as : List α) {h : as.forA
     dsimp [Functor.map, zipProof, List.map] at *
     rw [h_ind]
 
-theorem mapProp_iff_forAll {α : Type u} {p : α → Prop} {as : List α} : mapProp p as ↔ forAll p as where
+theorem SatisfiesM_List_eq {α : Type u} {p : α → Prop} {as : List α} : SatisfiesM p as ↔ forAll p as where
   mp h := by
     cases h with | intro xs hx =>
     cases hx
@@ -135,7 +102,7 @@ theorem mapProp_iff_forAll {α : Type u} {p : α → Prop} {as : List α} : mapP
     exact val_zipProof as
 
 instance instSubregFunctorList : SubregFunctor List where
-  ensureF x h := zipProof x (mapProp_iff_forAll.mp h)
+  ensureF x h := zipProof x (SatisfiesM_List_eq.mp h)
   val_ensureF x := val_zipProof x
   val_inj {_} {p} {as} {bs} h :=
     let rec aux : (as bs : List (Subtype p)) → Subtype.val <$> as = Subtype.val <$> bs → as = bs
@@ -160,36 +127,26 @@ def errorOrApply (f : α → β) : Except ε α → Except ε β
 | Except.error e => Except.error e
 | Except.ok a => Except.ok (f a)
 
-theorem map_eq_map_error_or_apply (f : α → β) (x : ExceptT ε m α) : (Functor.map f x) = errorOrApply f <$> x := by
+theorem map_eq_map_errorOrApply (f : α → β) (x : ExceptT ε m α) : (Functor.map f x) = errorOrApply f <$> x := by
   rw [Functor.map, Applicative.toFunctor, Monad.toApplicative]
   unfold instMonadExceptT
   simp
   unfold ExceptT.map
   rw [map_eq_pure_bind]
   apply bind_congr
-  intro e <;> cases e <;> rfl
+  intro e; cases e <;> rfl
 
-def is_error_or_true (p : α → Prop) : Except ε α → Prop :=
-  fun e => e.casesOn (motive:=fun _ => Prop) (fun _ => True) p
+@[reducible]
+def ok_implies_true (p : α → Prop) : Except ε α → Prop :=
+  λ x => ∀ a, x = Except.ok a → p a
 
-def toSubtype{p : α → Prop} : Except ε (Subtype p) → Subtype (is_error_or_true (ε:=ε) p)
-| Except.error e =>
-  Subtype.mk (Except.error e) $ by
-    unfold is_error_or_true
-    simp
-| Except.ok a =>
-  Subtype.mk (Except.ok a.val) $ by
-    unfold is_error_or_true
-    simp
-    exact a.property
+def toSubtype{p : α → Prop} : Except ε (Subtype p) → Subtype (ok_implies_true (ε:=ε) p)
+| Except.error e => ⟨Except.error e, by intro _ h; cases h⟩
+| Except.ok a => ⟨Except.ok a, λ _ h => Except.ok.inj h ▸ a.property⟩
 
-def fromSubtype {p : α → Prop} : Subtype (is_error_or_true (ε:=ε) p) → Except ε (Subtype p)
+def fromSubtype {p : α → Prop} : Subtype (ok_implies_true (ε:=ε) p) → Except ε (Subtype p)
 | Subtype.mk (Except.error e) _ => Except.error e
-| Subtype.mk (Except.ok a) ha => Except.ok ⟨a,ha⟩
-
-theorem is_error_or_true_apply (p : β → Prop) (f : α → β) : (is_error_or_true (ε:=ε) p ∘ errorOrApply f) = is_error_or_true (p ∘ f) := by
-  apply funext
-  intros e <;> cases e <;> rfl
+| Subtype.mk (Except.ok a) ha => Except.ok ⟨a,ha a rfl⟩
 
 theorem errorOrApply_val {p : α → Prop} : errorOrApply (ε:=ε) (Subtype.val (p:=p)) = Subtype.val ∘ toSubtype (p:=p) := by
   funext x
@@ -199,49 +156,22 @@ theorem from_toSubtype {p : α → Prop} : fromSubtype (ε:=ε) (p:=p) ∘ toSub
   funext x
   cases x <;> rfl
 
-theorem mapProp_iff_error_or_true {α : Type u} {p : α → Prop} : ∀ x, mapProp (f:=ExceptT ε m) p x ↔ mapProp (f:=m) (is_error_or_true p) x := by
-  intro x
-  constructor
-  case mp =>
-    intro hx
-    cases hx with | intro w hw =>
-    cases hw
-    exists toSubtype <$> w
-    rw [←comp_map]
-    rw [map_eq_map_error_or_apply]
-    apply map_congr
-    intro e <;> cases e <;> rfl
-  case mpr =>
-    intro hx
-    cases hx with | intro w hw =>
-    cases hw
-    unfold mapProp
-    exists Functor.map (f:=m) fromSubtype w
-    rw [map_eq_map_error_or_apply, ←comp_map]
-    apply map_congr
-    intro e <;> cases e with | mk e he =>
-    cases e <;> rfl
-
-def ensureF {α : Type u} {p : α → Prop} (x : ExceptT ε m α) (hx : mapProp p x) : ExceptT ε m (Subtype p) :=
-  Functor.map (f:=m) fromSubtype $
-    SubregFunctor.ensureF (f:=m) x $
-      (mapProp_iff_error_or_true x).mp hx
-
 instance instSubregFunctorExceptT : SubregFunctor (ExceptT ε m) where
-  ensureF := ensureF
+  ensureF {α} {p} x hx :=
+    Functor.map (f:=m) fromSubtype $
+      SubregFunctor.ensureF (f:=m) x (SatisfiesM_ExceptT_eq.mp hx)
   val_ensureF {α} {p} x hx := by
-    unfold ensureF
-    rw [map_eq_map_error_or_apply]
+    rw [map_eq_map_errorOrApply]
     rw [←comp_map]
     have : errorOrApply (ε:=ε) (Subtype.val (p:=p)) ∘ fromSubtype = Subtype.val := by
       apply funext
-      intro e <;> cases e with | mk e he =>
+      intro e; cases e with | mk e he =>
       cases e <;> rfl
     rw [this]
     rw [SubregFunctor.val_ensureF (f:=m) x]
   val_inj {_} {p} {x} {y} h := by
     conv at h =>
-      rw [map_eq_map_error_or_apply, map_eq_map_error_or_apply]
+      rw [map_eq_map_errorOrApply, map_eq_map_errorOrApply]
       rw [errorOrApply_val, comp_map, comp_map]
     have h' := SubregFunctor.val_inj h
     conv =>
@@ -257,44 +187,39 @@ end ExceptT
 ## `ReaderT`
 -/
 
-namespace ReaderT
+/-- `Classical`-free variant of `SatisfiesM_ReaderT_eq`; This version requires `SubregFunctor m` instead. -/
+theorem SatisfiesM_ReaderT_eq' {m : Type u → Type v} [Monad m] [SubregFunctor m] {ρ α : Type u} {p : α → Prop} {x : ReaderT ρ m α} : SatisfiesM (m:=ReaderT ρ m) p x ↔ ∀ s, SatisfiesM p (x s) where
+  mp h s := by
+    cases h with | intro x h =>
+    cases h
+    exists x s
+  mpr h := by
+    exists λ s => SubregFunctor.ensureF (f:=m) (x s) (h s)
+    funext s; dsimp [Functor.map]
+    rw [SubregFunctor.val_ensureF]
 
-variable {ρ : Type u} {m : Type u → Type v} [Monad m] [SubregFunctor m]
-
-def ensureF {α : Type u} {p : α → Prop} (x : ReaderT ρ m α) (hx : mapProp p x) : ReaderT ρ m (Subtype p) :=
-  fun r =>
-    SubregFunctor.ensureF (f:=m) (x r) $ by
-      cases hx with | intro x hx =>
-      cases hx
-      unfold mapProp
-      exists x r
-
-theorem map_eq_map_ap {α β : Type u} (f : α → β) (x : ReaderT ρ m α) : ∀ r, (f <$> x) r = f <$> (x r) := fun _ => rfl
-
-instance instSubregFunctorReaderT : SubregFunctor (ReaderT ρ m) where
-  ensureF := ensureF
+instance instSubregFunctorReaderT (ρ : Type u) (m : Type u → Type v) [Monad m] [SubregFunctor m] : SubregFunctor (ReaderT ρ m) where
+  ensureF x h s := SubregFunctor.ensureF (x s) $ SatisfiesM_ReaderT_eq'.mp h s
   val_ensureF {α} {p} x hx := by
-    apply funext
-    intro r
+    funext _
     cases hx with | intro w hw =>
     cases hw
-    unfold ensureF
-    simp
-    rw [map_eq_map_ap, SubregFunctor.val_ensureF]
+    dsimp [Functor.map]
+    rw [SubregFunctor.val_ensureF]
   val_inj {_} {p} {x} {y} h:= by
-    conv at h =>
-      dsimp [Functor.map]
-    funext r
+    conv at h => dsimp [Functor.map]
+    funext s
     apply SubregFunctor.val_inj (f:=m)
     conv =>
-      lhs; change (λ r => (Subtype.val <$> x r)) r; rw [h]
-
-end ReaderT
+      lhs; change (λ r => (Subtype.val <$> x r)) s; rw [h]
 
 
 /-!
 ## `StateRefT`
 -/
+
+theorem SatisfiesM_StateRefT_eq' {m : Type → Type} [Monad m] [SubregFunctor m] {ω σ α : Type} {p : α → Prop} {x : StateRefT' ω σ m α} : SatisfiesM p x ↔ ∀ (s : ST.Ref ω σ), SatisfiesM p (x s) :=
+  SatisfiesM_ReaderT_eq'
 
 instance {ω σ : Type} {m : Type → Type} [Monad m] [SubregFunctor m] : SubregFunctor (StateRefT' ω σ m) :=
   inferInstanceAs (SubregFunctor (ReaderT (ST.Ref ω σ) m))
@@ -304,86 +229,59 @@ instance {ω σ : Type} {m : Type → Type} [Monad m] [SubregFunctor m] : Subreg
 ## `StateT`
 -/
 
-namespace StateT
-
-variable {σ α β : Type u} {m : Type u → Type v} [Monad m] [LawfulMonad m] [SubregFunctor m]
-
-theorem map_eq_map_comp (f : α → β) (x : StateT σ m α) : (f <$> x) = Functor.map (f:=m) (Prod.map f id) ∘ x := by
-  apply funext; intro s
-  rw [Functor.map, Applicative.toFunctor, Monad.toApplicative]
-  unfold instMonadStateT
-  simp
-  unfold StateT.map
-  rw [map_eq_pure_bind]
-  apply bind_congr
-  intro w; rfl
-
-def Prod.fstToSubtype {p : α → Prop} : (Subtype p) × σ → Subtype (α:=α×σ) (p ∘ Prod.fst) :=
+def Prod.fstToSubtype {α σ : Type u} {p : α → Prop} : (Subtype p) × σ → Subtype (α:=α×σ) (p ∘ Prod.fst) :=
   λ x => ⟨⟨x.1.val, x.2⟩, x.1.property⟩
 
-def Prod.fstFromSubtype {p : α → Prop} : Subtype (α:=α×σ) (p ∘ Prod.fst) → Subtype p × σ :=
+def Prod.fstFromSubtype {α σ : Type u} {p : α → Prop} : Subtype (α:=α×σ) (p ∘ Prod.fst) → Subtype p × σ :=
   λ x => ⟨⟨x.val.1, x.property⟩, x.val.2⟩
 
-theorem Prod.fst_from_to_subtype {p : α → Prop} : Prod.fstFromSubtype (σ:=σ) (p:=p) ∘ Prod.fstToSubtype = id := by
+theorem Prod.fst_from_to_subtype {α σ : Type u} {p : α → Prop} : Prod.fstFromSubtype (σ:=σ) (p:=p) ∘ Prod.fstToSubtype = id := by
   funext x
   cases x; rfl
 
-theorem Prod.map_val_id {p : α → Prop} : Prod.map (Subtype.val (p:=p)) (id (α:=σ)) = Subtype.val ∘ Prod.fstToSubtype := by
+theorem Prod.map_val_id {α σ : Type u} {p : α → Prop} : Prod.map (Subtype.val (p:=p)) (id (α:=σ)) = Subtype.val ∘ Prod.fstToSubtype := by
   funext x
   cases x; rfl
 
-theorem mapProp_eq_forall_mapProp_fst {p : α → Prop} {x : StateT σ m α} : (mapProp p x) = ∀ s, mapProp (p ∘ Prod.fst) (x s) := by
-  apply propext; constructor
-  case a.mp =>
-    intro hx s
-    cases hx with | intro w hw =>
+theorem SatisfiesM_StateT_eq' {m : Type u → Type v} [Monad m] [LawfulMonad m] [SubregFunctor m] {α ρ : Type u} {p : α → Prop} {x : StateT ρ m α} : SatisfiesM p x ↔ ∀ (s : ρ), SatisfiesM (fun x => p x.fst) (x s) where
+  mp h s := by
+    cases h with | intro w hw =>
     cases hw
     exists Prod.fstToSubtype (p:=p) <$> w s
-    rw [←comp_map, map_eq_map_comp]
-    simp
+    dsimp [Functor.map, StateT.map]
+    rw [←comp_map, ←map_eq_pure_bind]
     apply map_congr
     intro x; rfl
-  case a.mpr =>
-    intro h
+  mpr h := by
     exists fun s => Prod.fstFromSubtype <$> SubregFunctor.ensureF (x s) (h s)
     apply funext; intro s
-    rw [map_eq_map_comp]
-    dsimp
-    rw [←comp_map]
+    dsimp [Functor.map, StateT.map]
+    rw [←map_eq_pure_bind, ←comp_map]
     conv =>
       lhs; lhs; ext as; dsimp [Prod.map]; change as.val
     conv => lhs; lhs; change Subtype.val
     rw [SubregFunctor.val_ensureF (x s)]
 
-def ensureF {p : α → Prop} (x : StateT σ m α) (hx : mapProp p x) : StateT σ m (Subtype p) :=
-  have : ∀ s, mapProp (p ∘ Prod.fst) (x s) := by
-    rw [mapProp_eq_forall_mapProp_fst] at hx
-    exact hx
-  fun s => Prod.fstFromSubtype <$> SubregFunctor.ensureF (x s) (this s)
-
-instance instSubregFunctorStateT : SubregFunctor (StateT σ m) where
-  ensureF := ensureF
+instance instSubregFunctorStateT {m : Type u → Type v} [Monad m] [LawfulMonad m] [SubregFunctor m] {σ : Type u} : SubregFunctor (StateT σ m) where
+  ensureF x hx s := Prod.fstFromSubtype <$> SubregFunctor.ensureF (x s) (SatisfiesM_StateT_eq'.mp hx s)
   val_ensureF x hx := by
-    apply funext; intro s
-    unfold ensureF
-    rw [map_eq_map_comp]
-    dsimp
-    rw [←comp_map]
+    funext s
+    dsimp [Functor.map, StateT.map]
+    rw [←map_eq_pure_bind, ←comp_map]
     exact SubregFunctor.val_ensureF _
   val_inj {_} {p} {x y} h := by
     funext s
     rw [←id_map (f:=m) (x s), ←id_map (f:=m) (y s)]
     rw [←Prod.fst_from_to_subtype]
     rw [comp_map, comp_map]
-    conv at h =>
-      rw [map_eq_map_comp, map_eq_map_comp, Prod.map_val_id]
     have h' := congrFun h
     conv at h' =>
-      ext s; dsimp;
+      ext s
+      dsimp [Functor.map, StateT.map]
+      rw [←map_eq_pure_bind, ←map_eq_pure_bind]
+      change (Subtype.val ∘ Prod.fstToSubtype) <$> x s = (Subtype.val ∘ Prod.fstToSubtype) <$> y s
       rw [comp_map, comp_map]
     rw [SubregFunctor.val_inj (h' s)]
-
-end StateT
 
 
 /-!
@@ -392,80 +290,56 @@ end StateT
 
 namespace EStateM
 
-variable {ε σ α β : Type u}
+variable {ε σ : Type u}
 
 namespace Result
 
-def map (f : α → β) : Result ε σ α → Result ε σ β
+def map {α β : Type u} (f : α → β) : Result ε σ α → Result ε σ β
 | ok a s => ok (f a) s
 | error err s => error err s
 
-def errorOrTrue (p : α → Prop) : Result ε σ α → Prop
-| ok a _ => p a
-| error _ _ => True
+@[reducible, inline]
+def okThenTrue {α : Type u} (p : α → Prop) : Result ε σ α → Prop :=
+  λ x => ∀ a s, x = Result.ok a s → p a
 
-def fromSubtype {p : α → Prop} : Subtype (errorOrTrue (ε:=ε) (σ:=σ) p) → Result ε σ (Subtype p)
-| Subtype.mk (ok a s) h => ok ⟨a,h⟩ s
-| Subtype.mk (error e s) _ => error e s
+def zipProof {α : Type u} {p : α → Prop} : (x : Result ε σ α) → okThenTrue (ε:=ε) (σ:=σ) p x → Result ε σ (Subtype p)
+| ok a s, h => ok ⟨a,h _ _ rfl⟩ s
+| error e s, _ => error e s
 
-theorem map_val_fromSubtype {p : α → Prop} (x : Subtype (errorOrTrue (ε:=ε) (σ:=σ) p)) : map Subtype.val (fromSubtype x) = x.val := by
-  cases x with | mk a ha =>
-  unfold fromSubtype; unfold map
-  cases a <;> simp
+theorem map_val_zipProof {α : Type u} {p : α → Prop} : ∀ (x : Result ε σ α) {h : okThenTrue (ε:=ε) (σ:=σ) p x}, map Subtype.val (zipProof x h) = x
+| ok _ _, _ => rfl
+| error _ _, _ => rfl
 
 end Result
 
-theorem map_eq_map_comp {β : Type _} (f : α → β) (x : EStateM ε σ α) : (f <$> x) = Result.map f ∘ x := by
-  apply funext; intro s
-  rw [Functor.map, Applicative.toFunctor, Monad.toApplicative, instMonadEStateM]
-  simp
-  unfold EStateM.map
-  cases x s <;> unfold Result.map <;> rfl
-
-theorem mapProp_iff_forall_error_or_true {p : α → Prop} {x : EStateM ε σ α} : (mapProp p x) ↔ ∀ s, (x s).errorOrTrue p := by
-  constructor
-  case mp =>
-    intro hx s
+theorem SatisfiesM_EStateM_eq {α : Type u} {p : α → Prop} {x : EStateM ε σ α} : (SatisfiesM p x) ↔ (∀ s a s', (x s) = Result.ok a s' → p a) where
+  mp hx s a _ := by
     cases hx with | intro w hw =>
     cases hw
-    rw [Functor.map, Applicative.toFunctor, Monad.toApplicative, instMonadEStateM]
-    simp
-    unfold EStateM.map
-    cases w s with
-    | ok a s =>
-      unfold Result.errorOrTrue; simp
-      exact a.property
-    | error e s => unfold Result.errorOrTrue; simp
-  case mpr =>
-    intro h
-    exists fun s => Result.fromSubtype ⟨x s, h s⟩
-    apply funext
-    intro s
-    rw [map_eq_map_comp]
-    simp
-    rw [Result.map_val_fromSubtype]
-
-def ensureF {p : α → Prop} (x : EStateM ε σ α) (hx : mapProp p x) : EStateM ε σ (Subtype p) :=
-  fun s =>
-    Result.fromSubtype $ Subtype.mk (x s) $
-      mapProp_iff_forall_error_or_true.mp hx s
+    dsimp [Functor.map, EStateM.map]
+    cases w s <;> intro h
+    case ok a s' => exact (Result.ok.inj h).left ▸ a.property
+    case error e s' => cases h
+  mpr h := by
+    exists λ s => (x s).zipProof (h s)
+    funext s
+    dsimp [Functor.map, EStateM.map]
+    conv =>
+      lhs; change Result.map (Subtype.val (p:=p)) ((x s).zipProof (h s))
+      rw [Result.map_val_zipProof]
 
 instance instSubregFunctorEStateM : SubregFunctor (EStateM ε σ) where
-  ensureF := ensureF
-  val_ensureF x hx := by
-    apply funext; intro s
-    cases hx with | intro w hw =>
-    cases hw
-    rw [map_eq_map_comp]
-    simp
-    unfold ensureF
-    rw [Result.map_val_fromSubtype]
+  ensureF x hx s := (x s).zipProof (SatisfiesM_EStateM_eq.mp hx s)
+  val_ensureF {_} {p} x hx := by
+    funext s
+    conv =>
+      lhs; change Result.map Subtype.val ((x s).zipProof (SatisfiesM_EStateM_eq.mp hx s))
+      rw [Result.map_val_zipProof]
   val_inj {_} {p} {x y} h := by
     funext s
     have hs := congrFun h s
     conv at hs =>
-      rw [map_eq_map_comp, map_eq_map_comp]
-      dsimp
+      dsimp [Functor.map, EStateM.map]
     cases hx : x s
       <;> cases hy : y s
       <;> conv at hs => rw [hx, hy]; dsimp [Result.map]
