@@ -13,5 +13,5 @@ lean_lib Dijkstra {
 meta if get_config? doc = some "on" then
 require «doc-gen4» from git "https://github.com/leanprover/doc-gen4" @ "main"
 
-require Std from git
+require «std» from git
   "https://github.com/leanprover/std4" @ "main"
